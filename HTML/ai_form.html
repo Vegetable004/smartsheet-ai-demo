@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartSheet-AI · AI 填单确认</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .menu-active { background: #E8F3FF; color: #1677FF; border-left: 3px solid #1677FF; }
+    .menu-item:hover { background: #F5F7FA; }
+    .menu-item.active { background: #E8F3FF; color: #1677FF; }
+    .evidence-span { cursor: pointer; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+    .field-highlight { box-shadow: 0 0 0 1px #1677FF; border-radius: 4px; }
+    .toast-enter { animation: slideIn 0.3s ease; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .btn-loading { opacity: 0.7; pointer-events: none; }
+    .btn-loading::after { content: '...'; animation: dots 1s infinite; }
+    @keyframes dots { 0%,20% { content: '.'; } 40% { content: '..'; } 60%,100% { content: '...'; } }
+  </style>
+</head>
+<body class="font-sans text-sm text-[#1F2329] bg-[#F5F7FA] h-screen overflow-hidden">
+
+<div class="flex h-full">
+  <!-- 左侧菜单栏 -->
+  <aside class="w-60 bg-white border-r border-[#E5E6EB] flex flex-col shrink-0">
+    <div class="h-14 flex items-center px-4 gap-2 border-b border-[#E5E6EB]">
+      <div class="w-8 h-8 bg-[#1677FF] rounded-md flex items-center justify-center text-white text-xs font-bold">S</div>
+      <span class="font-medium">SmartSheet-AI</span>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-2">
+      <div class="px-3 space-y-1">
+        <a href="index.html" class="menu-item block px-3 py-2 rounded-md text-[13px] flex items-center gap-2 text-[#86909C]">
+          <span>📋</span> 台账列表
+        </a>
+        <a href="ai_form.html" class="menu-active block px-3 py-2 rounded-md font-medium text-[13px] flex items-center gap-2">
+          <span>✨</span> AI填单
+        </a>
+        <a href="dashboard.html" class="menu-item block px-3 py-2 rounded-md text-[13px] flex items-center gap-2 text-[#86909C]">
+          <span>📈</span> 数据看板
+        </a>
+      </div>
+    </nav>
+    <div class="h-14 border-t border-[#E5E6EB] flex items-center px-4 gap-2">
+      <div class="w-8 h-8 rounded-full bg-[#1677FF] text-white flex items-center justify-center text-xs">张</div>
+      <span class="text-[13px] text-[#86909C]">张三 · 管理员</span>
+    </div>
+  </aside>
+
+  <!-- 主内容：左侧表格预览 + 右侧 AI 卡片 -->
+  <div class="flex-1 flex min-w-0">
+    <!-- 表格预览（缩小版） -->
+    <div class="flex-1 flex flex-col min-w-0 opacity-60">
+      <header class="h-14 bg-white border-b border-[#E5E6EB] flex items-center px-4">
+        <h1 class="font-medium">进货台账</h1>
+        <span class="ml-3 text-[13px] text-[#86909C]">（背景预览）</span>
+      </header>
+      <div class="flex-1 overflow-auto p-4">
+        <div class="bg-white rounded-lg border border-[#E5E6EB] p-4 text-[13px] text-[#86909C]">
+          确认入库后，新记录将出现在台账列表中。
+          <a href="index.html" class="text-[#1677FF] hover:underline ml-1">返回台账列表 →</a>
+        </div>
+        <table class="w-full mt-4 border-collapse">
+          <thead>
+            <tr class="bg-[#F7F8FA] text-[#4E5969] font-medium text-[13px]">
+              <th class="h-10 border-b border-[#E5E6EB] px-3 text-left">入库单号</th>
+              <th class="h-10 border-b border-[#E5E6EB] px-3 text-left">品名</th>
+              <th class="h-10 border-b border-[#E5E6EB] px-3 text-right">数量</th>
+              <th class="h-10 border-b border-[#E5E6EB] px-3 text-right">金额（元）</th>
+            </tr>
+          </thead>
+          <tbody id="preview-body">
+            <tr class="h-11 hover:bg-[#F5F7FA]"><td class="border-b border-[#E5E6EB] px-3 text-[#1677FF] font-mono">RK20260910001</td><td class="border-b border-[#E5E6EB] px-3">笔记本电脑</td><td class="border-b border-[#E5E6EB] px-3 text-right">5</td><td class="border-b border-[#E5E6EB] px-3 text-right">22,500.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 右侧 AI 填单确认卡片 -->
+    <aside class="w-96 bg-white border-l border-[#E5E6EB] flex flex-col shrink-0">
+      <div class="h-14 border-b border-[#E5E6EB] flex items-center justify-between px-4">
+        <span class="font-medium">✨ AI 填单助手</span>
+        <button onclick="location.href='index.html'" class="text-[#86909C] hover:text-[#1F2329] text-xl">&times;</button>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4 space-y-4" id="card-area">
+        <!-- 空态 -->
+        <div id="empty-state" class="text-center py-12 text-[#86909C]">
+          <p class="mb-4">在下方输入进货描述，AI 将自动解析字段</p>
+          <button onclick="triggerDemo()" class="text-[#1677FF] hover:underline text-[13px]">点击体验示例："昨天买了10个苹果单价5块"</button>
+        </div>
+
+        <!-- 确认卡片（默认隐藏） -->
+        <div id="confirm-card" class="hidden space-y-4">
+          <!-- ① 原文回显 -->
+          <div class="bg-[#F5F7FA] rounded-md p-3 text-[13px] leading-relaxed" id="source-text">
+            <span class="evidence-span decoration-[#1677FF]" data-field="date">昨天</span>买了
+            <span class="evidence-span decoration-[#52C41A]" data-field="qty">10</span>个
+            <span class="evidence-span decoration-[#FAAD14]" data-field="name">苹果</span>
+            <span class="evidence-span decoration-[#1677FF]" data-field="price">单价5块</span>
+          </div>
+
+          <!-- ② 提取字段列表 -->
+          <div class="space-y-2" id="field-list">
+            <div class="field-row flex items-start gap-2 py-2 border-b border-[#E5E6EB]" data-field="date">
+              <span class="w-20 shrink-0 text-[#86909C]">入库日期</span>
+              <div class="flex-1">
+                <span class="field-value cursor-pointer hover:text-[#1677FF]" onclick="editField(this)">2026-09-09</span>
+                <p class="text-[12px] text-[#86909C] mt-0.5">采购发生的日期</p>
+              </div>
+              <span class="text-[#52C41A] text-[12px] shrink-0">✓ 98%</span>
+            </div>
+            <div class="field-row flex items-start gap-2 py-2 border-b border-[#E5E6EB]" data-field="name">
+              <span class="w-20 shrink-0 text-[#86909C]">品名</span>
+              <div class="flex-1">
+                <span class="field-value cursor-pointer hover:text-[#1677FF]" onclick="editField(this)">苹果</span>
+                <p class="text-[12px] text-[#86909C] mt-0.5">物品的采购名称</p>
+              </div>
+              <span class="text-[#52C41A] text-[12px] shrink-0">✓ 95%</span>
+            </div>
+            <div class="field-row flex items-start gap-2 py-2 border-b border-[#E5E6EB]" data-field="qty">
+              <span class="w-20 shrink-0 text-[#86909C]">数量</span>
+              <div class="flex-1">
+                <span class="field-value cursor-pointer hover:text-[#1677FF]" onclick="editField(this)">10</span>
+                <p class="text-[12px] text-[#86909C] mt-0.5">采购数量（整数）</p>
+              </div>
+              <span class="text-[#52C41A] text-[12px] shrink-0">✓ 97%</span>
+            </div>
+            <div class="field-row flex items-start gap-2 py-2 border-b border-[#E5E6EB]" data-field="price">
+              <span class="w-20 shrink-0 text-[#86909C]">单价</span>
+              <div class="flex-1">
+                <span class="field-value cursor-pointer hover:text-[#1677FF]" onclick="editField(this)">5.00 元</span>
+                <p class="text-[12px] text-[#86909C] mt-0.5">每件商品的采购单价</p>
+              </div>
+              <span class="text-[#FAAD14] text-[12px] shrink-0">82%</span>
+            </div>
+          </div>
+
+          <!-- ③ 低置信度字段 -->
+          <div class="field-row bg-[#FFF1F0] border border-[#FFA39E] rounded-md px-3 py-2 flex items-start gap-2" data-field="supplier">
+            <span class="text-[#FF4D4F] shrink-0">⚠️</span>
+            <span class="w-16 shrink-0 text-[#86909C]">供应商</span>
+            <div class="flex-1">
+              <span class="field-value cursor-pointer hover:text-[#1677FF]" onclick="editField(this)">恒达</span>
+              <p class="text-[12px] text-[#FF4D4F] mt-0.5">请核对 · 置信度较低</p>
+            </div>
+            <span class="text-[#FF4D4F] text-[12px] shrink-0">65% 请核对</span>
+          </div>
+
+          <p class="text-[12px] text-[#86909C]">点击任意字段值可修改，AI 建议值仅供参考</p>
+
+          <!-- ⑤ 确认按钮 -->
+          <div id="confirm-section">
+            <p class="text-[12px] text-[#86909C] mb-2 text-center">金额、入库单号将由系统自动生成</p>
+            <button id="btn-confirm" onclick="confirmEntry()" class="w-full bg-[#1677FF] hover:bg-[#4096FF] text-white rounded-md py-2.5 font-medium transition-colors">
+              一键确认入库
+            </button>
+          </div>
+
+          <!-- ⑥ 撤销区域（确认后显示） -->
+          <div id="undo-section" class="hidden space-y-2">
+            <div class="flex items-center gap-2">
+              <button id="btn-undo" onclick="undoEntry()" class="text-[#FF4D4F] border border-[#FF4D4F] rounded-md px-3 py-1.5 hover:bg-[#FFF1F0] transition-colors text-[13px]">
+                撤销此笔录入
+              </button>
+              <span id="countdown" class="text-[13px] text-[#86909C]">可在 2:59 内撤销</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部输入 -->
+      <div class="border-t border-[#E5E6EB] p-3 flex items-center gap-2">
+        <button class="w-9 h-9 rounded-full bg-[#1677FF] hover:bg-[#4096FF] text-white flex items-center justify-center shrink-0 transition-colors">🎤</button>
+        <input id="ai-input" type="text" value="昨天买了10个苹果单价5块" placeholder="描述进货信息..." class="flex-1 border border-[#E5E6EB] rounded-md px-3 py-2 text-[13px] focus:outline-none focus:border-[#1677FF]">
+        <button onclick="sendMessage()" class="bg-[#1677FF] hover:bg-[#4096FF] text-white rounded-md px-3 py-2 transition-colors">发送</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<script>
+  let countdownTimer = null;
+  let countdownSeconds = 179;
+  let entryConfirmed = false;
+  let newEntryId = 'RK20260910003';
+
+  // 证据划线联动高亮
+  document.querySelectorAll('.evidence-span').forEach(span => {
+    span.addEventListener('mouseenter', () => {
+      const field = span.dataset.field;
+      document.querySelectorAll('.field-row').forEach(row => row.classList.remove('field-highlight'));
+      const target = document.querySelector(`.field-row[data-field="${field}"]`);
+      if (target) target.classList.add('field-highlight');
+    });
+    span.addEventListener('mouseleave', () => {
+      document.querySelectorAll('.field-row').forEach(row => row.classList.remove('field-highlight'));
+    });
+  });
+
+  function editField(el) {
+    const val = el.textContent.trim();
+    const input = document.createElement('input');
+    input.value = val.replace(' 元', '');
+    input.className = 'border-b-2 border-[#1677FF] focus:outline-none bg-transparent w-full text-[13px]';
+    el.replaceWith(input);
+    input.focus();
+    input.select();
+    const finish = () => {
+      const span = document.createElement('span');
+      span.className = 'field-value cursor-pointer hover:text-[#1677FF]';
+      span.onclick = () => editField(span);
+      span.textContent = input.value.includes('元') ? input.value : (input.closest('[data-field="price"]') ? input.value + ' 元' : input.value);
+      input.replaceWith(span);
+    };
+    input.addEventListener('blur', finish);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  }
+
+  function triggerDemo() {
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('confirm-card').classList.remove('hidden');
+  }
+
+  function sendMessage() {
+    const text = document.getElementById('ai-input').value.trim();
+    if (!text) return;
+    if (text.includes('买了点水果')) {
+      showFollowUp();
+      return;
+    }
+    triggerDemo();
+  }
+
+  function showFollowUp() {
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('confirm-card').innerHTML = `
+      <div class="bg-[#F5F7FA] rounded-md p-3 text-[13px]">买了点水果</div>
+      <div class="bg-white border border-[#E5E6EB] rounded-lg p-4">
+        <p class="text-[13px] mb-3">数量是多少？</p>
+        <div class="flex gap-2">
+          <button onclick="selectChip(10)" class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-3 py-1.5 text-[13px] transition-colors">10</button>
+          <button onclick="selectChip(20)" class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-3 py-1.5 text-[13px] transition-colors">20</button>
+          <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-3 py-1.5 text-[13px] transition-colors">手动输入</button>
+        </div>
+      </div>`;
+    document.getElementById('confirm-card').classList.remove('hidden');
+  }
+
+  function selectChip(n) {
+    location.reload();
+  }
+
+  function showToast(html, duration = 5000) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'toast-enter bg-white border border-[#E5E6EB] rounded-lg shadow-2xl px-4 py-3 text-[13px] max-w-sm';
+    toast.innerHTML = html;
+    container.appendChild(toast);
+    if (duration > 0) {
+      setTimeout(() => toast.remove(), duration);
+    }
+    return toast;
+  }
+
+  function confirmEntry() {
+    const btn = document.getElementById('btn-confirm');
+    btn.classList.add('btn-loading');
+    btn.textContent = '入库中';
+
+    setTimeout(() => {
+      entryConfirmed = true;
+      btn.classList.remove('btn-loading');
+      document.getElementById('confirm-section').classList.add('hidden');
+      document.getElementById('undo-section').classList.remove('hidden');
+
+      // 预览表格新增行
+      const tbody = document.getElementById('preview-body');
+      const tr = document.createElement('tr');
+      tr.id = 'new-entry';
+      tr.className = 'h-11 hover:bg-[#F5F7FA] bg-[#E8F3FF]';
+      tr.innerHTML = `<td class="border-b border-[#E5E6EB] px-3 text-[#1677FF] font-mono">${newEntryId}</td><td class="border-b border-[#E5E6EB] px-3">苹果</td><td class="border-b border-[#E5E6EB] px-3 text-right">10</td><td class="border-b border-[#E5E6EB] px-3 text-right">50.00</td>`;
+      tbody.insertBefore(tr, tbody.firstChild);
+
+      showToast(`
+        <div class="flex items-start gap-2">
+          <span class="text-[#52C41A] text-lg">✓</span>
+          <div>
+            <p class="font-medium text-[#1F2329]">入库成功 ${newEntryId}</p>
+            <button id="toast-undo" onclick="undoFromToast()" class="text-[#FF4D4F] text-[12px] mt-1 hover:underline">撤销此笔录入</button>
+          </div>
+        </div>
+      `, 0);
+
+      startCountdown();
+    }, 1200);
+  }
+
+  function startCountdown() {
+    countdownSeconds = 179;
+    updateCountdownDisplay();
+    countdownTimer = setInterval(() => {
+      countdownSeconds--;
+      updateCountdownDisplay();
+      if (countdownSeconds <= 0) {
+        clearInterval(countdownTimer);
+        disableUndo();
+      }
+    }, 1000);
+  }
+
+  function updateCountdownDisplay() {
+    const m = Math.floor(countdownSeconds / 60);
+    const s = countdownSeconds % 60;
+    const el = document.getElementById('countdown');
+    if (el) el.textContent = countdownSeconds > 0 ? `可在 ${m}:${String(s).padStart(2, '0')} 内撤销` : '已超时，请使用编辑/删除';
+  }
+
+  function disableUndo() {
+    const btn = document.getElementById('btn-undo');
+    if (btn) {
+      btn.disabled = true;
+      btn.className = 'text-[#86909C] border border-[#E5E6EB] rounded-md px-3 py-1.5 line-through cursor-not-allowed text-[13px]';
+    }
+    const toastUndo = document.getElementById('toast-undo');
+    if (toastUndo) toastUndo.remove();
+  }
+
+  function undoEntry() {
+    if (countdownSeconds <= 0) return;
+    performUndo();
+  }
+
+  function undoFromToast() {
+    if (countdownSeconds <= 0) return;
+    performUndo();
+  }
+
+  function performUndo() {
+    clearInterval(countdownTimer);
+    const row = document.getElementById('new-entry');
+    if (row) row.remove();
+    document.getElementById('toast-container').innerHTML = '';
+    document.getElementById('confirm-section').classList.remove('hidden');
+    document.getElementById('undo-section').classList.add('hidden');
+    document.getElementById('btn-confirm').textContent = '一键确认入库';
+    entryConfirmed = false;
+
+    showToast(`
+      <div class="flex items-start gap-2">
+        <span class="text-[#86909C]">↩</span>
+        <div>
+          <p>已撤销，如有需要请重新录入</p>
+          <button onclick="refillInput()" class="text-[#1677FF] text-[12px] mt-1 hover:underline">重新录入</button>
+        </div>
+      </div>
+    `);
+  }
+
+  function refillInput() {
+    document.getElementById('ai-input').value = '昨天买了10个苹果单价5块';
+    document.getElementById('toast-container').innerHTML = '';
+    triggerDemo();
+  }
+
+  // 页面加载时自动展示卡片（预填示例）
+  window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(triggerDemo, 300);
+  });
+</script>
+</body>
+</html>

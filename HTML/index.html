@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SmartSheet-AI · 进货台账</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .menu-active { background: #E8F3FF; color: #1677FF; border-left: 3px solid #1677FF; }
+    .menu-item:hover { background: #F5F7FA; }
+    .menu-item.active { background: #E8F3FF; color: #1677FF; }
+    .cell-editing { outline: none; box-shadow: 0 0 0 1px #1677FF; }
+    .toast-enter { animation: slideIn 0.3s ease; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  </style>
+</head>
+<body class="font-sans text-sm text-[#1F2329] bg-[#F5F7FA] h-screen overflow-hidden">
+
+<div class="flex h-full">
+  <!-- 左侧菜单栏 -->
+  <aside class="w-60 bg-white border-r border-[#E5E6EB] flex flex-col shrink-0">
+    <div class="h-14 flex items-center px-4 gap-2 border-b border-[#E5E6EB]">
+      <div class="w-8 h-8 bg-[#1677FF] rounded-md flex items-center justify-center text-white text-xs font-bold">S</div>
+      <span class="font-medium text-[#1F2329]">SmartSheet-AI</span>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-2">
+      <div class="px-3 space-y-1">
+        <a href="index.html" class="menu-active block px-3 py-2 rounded-md font-medium text-[13px] flex items-center gap-2">
+          <span>📋</span> 台账列表
+        </a>
+        <a href="ai_form.html" class="menu-item block px-3 py-2 rounded-md text-[13px] flex items-center gap-2 text-[#86909C]">
+          <span>✨</span> AI填单
+        </a>
+        <a href="dashboard.html" class="menu-item block px-3 py-2 rounded-md text-[13px] flex items-center gap-2 text-[#86909C]">
+          <span>📈</span> 数据看板
+        </a>
+      </div>
+    </nav>
+    <div class="h-14 border-t border-[#E5E6EB] flex items-center px-4 gap-2">
+      <div class="w-8 h-8 rounded-full bg-[#1677FF] text-white flex items-center justify-center text-xs">张</div>
+      <span class="text-[13px] text-[#86909C]">张三 · 管理员</span>
+    </div>
+  </aside>
+
+  <!-- 主内容区 -->
+  <div class="flex-1 flex flex-col min-w-0">
+    <!-- 顶部工具栏 -->
+    <header class="h-14 bg-white border-b border-[#E5E6EB] flex items-center px-4 gap-3 shrink-0">
+      <h1 class="font-medium text-[#1F2329] mr-2">进货台账</h1>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-3 py-1.5 text-[13px] transition-colors">新增一行</button>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-3 py-1.5 text-[13px] transition-colors">数据填报</button>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-3 py-1.5 text-[13px] transition-colors">导入</button>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-3 py-1.5 text-[13px] transition-colors">导出</button>
+      <div class="flex-1"></div>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-2.5 py-1.5 text-[13px] transition-colors">筛选</button>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-2.5 py-1.5 text-[13px] transition-colors">分组</button>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-2.5 py-1.5 text-[13px] transition-colors">排序</button>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-2.5 py-1.5 text-[13px] transition-colors">查询配置</button>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-2.5 py-1.5 text-[13px] transition-colors">填报配置</button>
+      <button id="btn-ai" class="bg-[#1677FF] hover:bg-[#4096FF] text-white rounded-md px-4 py-1.5 text-[13px] font-medium transition-colors ml-2">✨ AI 助手</button>
+    </header>
+
+    <!-- 批量操作条 -->
+    <div id="batch-bar" class="hidden bg-[#E8F3FF] border-b border-[#E5E6EB] px-4 py-2 flex items-center gap-3 text-[13px]">
+      <span>已选 <strong id="selected-count">0</strong> 项</span>
+      <button class="text-[#FF4D4F] hover:bg-[#FFF1F0] border border-[#FF4D4F] rounded-md px-2 py-0.5 transition-colors">删除</button>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-2 py-0.5 transition-colors">导出</button>
+    </div>
+
+    <!-- 表格区 -->
+    <div class="flex-1 overflow-auto">
+      <table class="w-full border-collapse min-w-[900px]">
+        <thead>
+          <tr class="bg-[#F7F8FA] text-[#4E5969] font-medium text-[13px]">
+            <th class="h-10 w-10 border-b border-[#E5E6EB] px-2"><input type="checkbox" id="check-all"></th>
+            <th class="h-10 border-b border-[#E5E6EB] px-3 text-left cursor-pointer hover:text-[#1677FF]">入库单号 <span class="text-[#1677FF] text-[10px]">▲▼</span></th>
+            <th class="h-10 border-b border-[#E5E6EB] px-3 text-left cursor-pointer hover:text-[#1677FF]">入库日期 <span class="text-[10px] text-[#86909C]">▲▼</span></th>
+            <th class="h-10 border-b border-[#E5E6EB] px-3 text-left cursor-pointer hover:text-[#1677FF]">品名 <span class="text-[10px] text-[#86909C]">▲▼</span></th>
+            <th class="h-10 border-b border-[#E5E6EB] px-3 text-right cursor-pointer hover:text-[#1677FF]">数量 <span class="text-[10px] text-[#86909C]">▲▼</span></th>
+            <th class="h-10 border-b border-[#E5E6EB] px-3 text-right cursor-pointer hover:text-[#1677FF]">单价（元） <span class="text-[10px] text-[#86909C]">▲▼</span></th>
+            <th class="h-10 border-b border-[#E5E6EB] px-3 text-right cursor-pointer hover:text-[#1677FF]">金额（元） <span class="text-[10px] text-[#86909C]">▲▼</span></th>
+            <th class="h-10 border-b border-[#E5E6EB] px-3 text-left cursor-pointer hover:text-[#1677FF]">供应商 <span class="text-[10px] text-[#86909C]">▲▼</span></th>
+            <th class="h-10 border-b border-[#E5E6EB] px-3 text-left cursor-pointer hover:text-[#1677FF]">收货状态 <span class="text-[10px] text-[#86909C]">▲▼</span></th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+        <tfoot id="table-footer">
+          <tr class="bg-[#F7F8FA] font-medium text-[13px] hidden" id="summary-row">
+            <td class="h-11 border-b border-[#E5E6EB] px-2"></td>
+            <td class="h-11 border-b border-[#E5E6EB] px-3" colspan="3">合计</td>
+            <td class="h-11 border-b border-[#E5E6EB] px-3 text-right" id="sum-qty">0</td>
+            <td class="h-11 border-b border-[#E5E6EB] px-3"></td>
+            <td class="h-11 border-b border-[#E5E6EB] px-3 text-right" id="sum-amount">0.00</td>
+            <td class="h-11 border-b border-[#E5E6EB] px-3" colspan="2"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- 分页器 -->
+    <div class="h-12 bg-white border-t border-[#E5E6EB] flex items-center justify-end px-4 gap-2 text-[13px] text-[#86909C] shrink-0">
+      <span>共 <span id="total-records">12</span> 条</span>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-2 py-1 transition-colors">上一页</button>
+      <span class="text-[#1677FF]">1</span>
+      <button class="border border-[#E5E6EB] hover:border-[#1677FF] hover:text-[#1677FF] rounded-md px-2 py-1 transition-colors">下一页</button>
+      <span>每页 20 条</span>
+    </div>
+  </div>
+
+  <!-- 右侧 AI 悬浮窗 -->
+  <aside id="ai-panel" class="w-96 bg-white border-l border-[#E5E6EB] flex flex-col shrink-0 transition-transform duration-300 translate-x-full fixed right-0 top-0 h-full z-20">
+    <div class="h-14 border-b border-[#E5E6EB] flex items-center justify-between px-4">
+      <span class="font-medium">✨ AI 填单助手</span>
+      <button id="btn-close-ai" class="text-[#86909C] hover:text-[#1F2329] text-xl leading-none">&times;</button>
+    </div>
+    <div class="flex-1 overflow-y-auto p-4 text-[13px] text-[#86909C]">
+      <p>输入自然语言描述进货信息，AI 将自动解析并填单。</p>
+      <p class="mt-2">示例：<a href="ai_form.html" class="text-[#1677FF] hover:underline">前往 AI 填单确认页体验完整流程 →</a></p>
+    </div>
+    <div class="border-t border-[#E5E6EB] p-3 flex items-center gap-2">
+      <button class="w-9 h-9 rounded-full bg-[#1677FF] hover:bg-[#4096FF] text-white flex items-center justify-center shrink-0 transition-colors">🎤</button>
+      <input type="text" placeholder="描述进货信息，如：昨天买了10个苹果单价5块" class="flex-1 border border-[#E5E6EB] rounded-md px-3 py-2 text-[13px] focus:outline-none focus:border-[#1677FF]">
+      <button onclick="location.href='ai_form.html'" class="bg-[#1677FF] hover:bg-[#4096FF] text-white rounded-md px-3 py-2 transition-colors">发送</button>
+    </div>
+  </aside>
+</div>
+
+<!-- Toast 容器 -->
+<div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+<script>
+  const mockData = [
+    { id: 'RK20260910001', date: '2026-09-10', name: '笔记本电脑', qty: 5, price: 4500, supplier: '华硕科技', status: '已完成' },
+    { id: 'RK20260910002', date: '2026-09-10', name: '办公椅', qty: 20, price: 380, supplier: '恒达家具', status: '待收货' },
+    { id: 'RK20260909003', date: '2026-09-09', name: '苹果', qty: 100, price: 5.5, supplier: '鲜果汇', status: '已完成' },
+    { id: 'RK20260909004', date: '2026-09-09', name: '打印纸 A4', qty: 50, price: 28, supplier: '晨光文具', status: '已完成' },
+    { id: 'RK20260908005', date: '2026-09-08', name: '显示器 27寸', qty: 8, price: 1299, supplier: '戴尔官方', status: '已完成' },
+    { id: 'RK20260908006', date: '2026-09-08', name: '键盘', qty: 30, price: 89, supplier: '罗技代理', status: '待收货' },
+    { id: 'RK20260907007', date: '2026-09-07', name: '鼠标', qty: 30, price: 65, supplier: '罗技代理', status: '已完成' },
+    { id: 'RK20260907008', date: '2026-09-07', name: '香蕉', qty: 200, price: 3.2, supplier: '鲜果汇', status: '已完成' },
+    { id: 'RK20260906009', date: '2026-09-06', name: '文件夹', qty: 100, price: 2.5, supplier: '晨光文具', status: '已完成' },
+    { id: 'RK20260906010', date: '2026-09-06', name: '墨盒', qty: 15, price: 120, supplier: '惠普耗材', status: '待收货' },
+    { id: 'RK20260905011', date: '2026-09-05', name: '橙子', qty: 80, price: 4.8, supplier: '鲜果汇', status: '已完成' },
+    { id: 'RK20260905012', date: '2026-09-05', name: '白板', qty: 3, price: 450, supplier: '恒达家具', status: '已完成' },
+  ];
+
+  function formatMoney(n) {
+    return n.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function statusBadge(status) {
+    if (status === '已完成') {
+      return '<span class="inline-block px-2 py-0.5 rounded text-[12px] bg-[#52C41A]/10 text-[#52C41A] border border-[#52C41A]/30">' + status + '</span>';
+    }
+    return '<span class="inline-block px-2 py-0.5 rounded text-[12px] bg-[#FFFBE6] text-[#FAAD14] border border-[#FFE58F]">' + status + '</span>';
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('table-body');
+    let sumQty = 0, sumAmount = 0;
+    tbody.innerHTML = mockData.map((row, i) => {
+      const amount = row.qty * row.price;
+      sumQty += row.qty;
+      sumAmount += amount;
+      const stripe = i % 2 === 1 ? 'bg-white' : 'bg-white';
+      return `<tr class="h-11 ${stripe} hover:bg-[#F5F7FA] transition-colors" data-id="${row.id}">
+        <td class="border-b border-[#E5E6EB] px-2"><input type="checkbox" class="row-check"></td>
+        <td class="border-b border-[#E5E6EB] px-3 text-[#1677FF] font-mono text-[13px]">${row.id}</td>
+        <td class="border-b border-[#E5E6EB] px-3 text-[13px] editable-cell" data-field="date">${row.date}</td>
+        <td class="border-b border-[#E5E6EB] px-3 text-[13px] editable-cell" data-field="name">${row.name}</td>
+        <td class="border-b border-[#E5E6EB] px-3 text-[13px] text-right editable-cell" data-field="qty">${row.qty}</td>
+        <td class="border-b border-[#E5E6EB] px-3 text-[13px] text-right editable-cell" data-field="price">${formatMoney(row.price)}</td>
+        <td class="border-b border-[#E5E6EB] px-3 text-[13px] text-right text-[#86909C]">${formatMoney(amount)} 🔒</td>
+        <td class="border-b border-[#E5E6EB] px-3 text-[13px] editable-cell" data-field="supplier">${row.supplier}</td>
+        <td class="border-b border-[#E5E6EB] px-3 text-[13px]">${statusBadge(row.status)}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('sum-qty').textContent = sumQty;
+    document.getElementById('sum-amount').textContent = formatMoney(sumAmount);
+    document.getElementById('summary-row').classList.remove('hidden');
+    document.getElementById('total-records').textContent = mockData.length;
+    bindTableEvents();
+  }
+
+  function bindTableEvents() {
+    document.querySelectorAll('.editable-cell').forEach(cell => {
+      cell.addEventListener('dblclick', () => {
+        const val = cell.textContent.trim();
+        cell.innerHTML = `<input class="cell-editing w-full bg-transparent text-[13px] ${cell.classList.contains('text-right') ? 'text-right' : ''}" value="${val}">`;
+        const input = cell.querySelector('input');
+        input.focus();
+        input.select();
+        input.addEventListener('blur', () => { cell.textContent = input.value; });
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+      });
+    });
+
+    document.querySelectorAll('.row-check').forEach(cb => {
+      cb.addEventListener('change', updateBatchBar);
+    });
+  }
+
+  function updateBatchBar() {
+    const checked = document.querySelectorAll('.row-check:checked').length;
+    document.getElementById('selected-count').textContent = checked;
+    document.getElementById('batch-bar').classList.toggle('hidden', checked === 0);
+  }
+
+  document.getElementById('check-all').addEventListener('change', function() {
+    document.querySelectorAll('.row-check').forEach(cb => { cb.checked = this.checked; });
+    updateBatchBar();
+  });
+
+  const aiPanel = document.getElementById('ai-panel');
+  document.getElementById('btn-ai').addEventListener('click', () => {
+    aiPanel.classList.toggle('translate-x-full');
+  });
+  document.getElementById('btn-close-ai').addEventListener('click', () => {
+    aiPanel.classList.add('translate-x-full');
+  });
+
+  renderTable();
+</script>
+</body>
+</html>
